@@ -1,0 +1,6 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "./order-management/Cargo.toml",
+        "./order-producer/Cargo.toml",
+    ]
+}
