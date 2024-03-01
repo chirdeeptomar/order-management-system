@@ -1,8 +1,8 @@
 use crate::models::Order;
 
 pub enum SerializationType {
-    JSON,
-    MESSAGEPACK,
+    Json,
+    Messagepack,
 }
 
 pub trait Serialization {
