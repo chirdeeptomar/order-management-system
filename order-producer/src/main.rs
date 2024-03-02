@@ -24,22 +24,29 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let args = utils::args_parser::parse(env::args().collect());
 
-    let serializer = utils::serializer_factory::get_serializer(args.serializer_type);
-
     // Wrap it in Arc<Mutex<>> for thread safety
-    let serializer = Arc::new(Mutex::new(serializer));
+    let shared_counter = Arc::new(Mutex::new(1));
 
-    // Spawn a thread and move the serializer into it
-    let thread_serializer = Arc::clone(&serializer);
+    // Spawn a thread and move the cloned counter into it
+    let shared_counter_clone = Arc::clone(&shared_counter);
 
-    let join_handle = tokio::spawn(async move {
-        producer::load(thread_serializer).await;
-    });
+    let join_handle = tokio::spawn(async move { producer::load(args, shared_counter_clone).await });
 
     signal::ctrl_c().await.expect("failed to listen for event");
 
-    warn!("Shutting down gracefully...");
+    warn!("Shutting down grcaefully...");
+
     join_handle.abort();
+
+    // Continue using the original serializer in the main thread
+    let final_value = shared_counter.lock().unwrap();
+
+    warn!(
+        "Total records produced: {:?}",
+        (*final_value) * (DEFAULT_BATCH_SIZE as i32)
+    );
+
+    warn!("Graceful shutdown completed!");
 
     Ok(())
 }

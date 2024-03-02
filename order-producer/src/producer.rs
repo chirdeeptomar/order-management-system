@@ -3,10 +3,20 @@ use std::sync::{Arc, Mutex};
 use log::{error, info};
 use rskafka::client::partition::{Compression, UnknownTopicHandling};
 
-use crate::{connection::get_kafka_client, serializer::Serializer, utils, ORDERS_TOPIC};
+use crate::{
+    connection::get_kafka_client,
+    utils::{self, args_parser::Args},
+    ORDERS_TOPIC,
+};
 
-pub(crate) async fn load(thread_serializer: Arc<Mutex<Box<dyn Serializer + Send>>>) {
-    let mut counter: i32 = 0;
+pub(crate) async fn load(args: Args, shared_counter: Arc<Mutex<i32>>) {
+    let serializer = utils::serializer_factory::get_serializer(args.serializer_type);
+
+    // Wrap it in Arc<Mutex<>> for thread safety
+    let serializer = Arc::new(Mutex::new(serializer));
+
+    // Spawn a thread and move the serializer into it
+    let serializer = Arc::clone(&serializer);
 
     info!("Connecting to Kafka...");
 
@@ -26,7 +36,7 @@ pub(crate) async fn load(thread_serializer: Arc<Mutex<Box<dyn Serializer + Send>
         .unwrap();
 
     loop {
-        let batch = utils::data_factory::genrate_record_batch(&thread_serializer);
+        let batch = utils::data_factory::genrate_record_batch(&serializer);
 
         let result = partition_client
             .produce(batch, Compression::default())
@@ -34,8 +44,8 @@ pub(crate) async fn load(thread_serializer: Arc<Mutex<Box<dyn Serializer + Send>
 
         match result {
             Ok(_) => {
-                counter += 1;
-                info!("Batch Saved: {}", counter);
+                *shared_counter.lock().unwrap() += 1;
+                info!("Batch Saved: {}", *shared_counter.lock().unwrap());
             }
             Err(err) => {
                 error!("Error occured");
