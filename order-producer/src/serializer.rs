@@ -5,7 +5,7 @@ pub enum SerializationType {
     Messagepack,
 }
 
-pub trait Serialization {
+pub trait Serializer {
     fn new() -> Self
     where
         Self: Sized;
@@ -15,7 +15,7 @@ pub trait Serialization {
 
 pub struct JsonSerializer {}
 
-impl Serialization for JsonSerializer {
+impl Serializer for JsonSerializer {
     fn new() -> Self {
         Self {}
     }
@@ -27,7 +27,7 @@ impl Serialization for JsonSerializer {
 
 pub struct MessagepackSerializer {}
 
-impl Serialization for MessagepackSerializer {
+impl Serializer for MessagepackSerializer {
     fn new() -> Self {
         Self {}
     }
