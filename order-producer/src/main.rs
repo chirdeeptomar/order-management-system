@@ -22,11 +22,9 @@ const DEFAULT_BATCH_SIZE: i8 = 50;
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
-    let args = env::args().collect();
+    let args = utils::args_parser::parse(env::args().collect());
 
-    let serializer_type = utils::args_parser::parse(args);
-
-    let serializer = utils::serializer_factory::get_serializer(serializer_type);
+    let serializer = utils::serializer_factory::get_serializer(args.serializer_type);
 
     // Wrap it in Arc<Mutex<>> for thread safety
     let serializer = Arc::new(Mutex::new(serializer));
