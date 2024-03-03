@@ -10,8 +10,6 @@ use log::warn;
 
 use tokio::signal;
 
-use std::env;
-
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 use std::thread::available_parallelism;
@@ -34,10 +32,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let tasks = (0..num_cores)
         .map(|_| {
-            let args = utils::args_parser::parse(env::args().collect());
             // Clone a reference to should_terminate for the stream
             let should_terminate_signal = Arc::clone(&should_terminate);
-            tokio::spawn(async move { producer::load(args, should_terminate_signal).await })
+            tokio::spawn(async move { producer::load(should_terminate_signal).await })
         })
         .collect::<Vec<_>>();
 

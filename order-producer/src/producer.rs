@@ -1,4 +1,5 @@
 use std::{
+    env,
     sync::{Arc, Mutex},
     thread,
 };
@@ -8,11 +9,13 @@ use rskafka::client::partition::{Compression, UnknownTopicHandling};
 
 use crate::{
     connection::get_kafka_client,
-    utils::{self, args_parser::Args},
+    utils::{self},
     ORDERS_TOPIC,
 };
 
-pub(crate) async fn load(args: Args, should_terminate: Arc<Mutex<bool>>) -> i32 {
+pub(crate) async fn load(should_terminate: Arc<Mutex<bool>>) -> i32 {
+    let args = utils::args_parser::parse(env::args().collect());
+
     let serializer = utils::serializer_factory::get_serializer(args.serializer_type);
 
     // Wrap it in Arc<Mutex<>> for thread safety
