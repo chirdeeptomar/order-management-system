@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+};
 
 use log::{error, info};
 use rskafka::client::partition::{Compression, UnknownTopicHandling};
@@ -9,7 +12,7 @@ use crate::{
     ORDERS_TOPIC,
 };
 
-pub(crate) async fn load(args: Args, shared_counter: Arc<Mutex<i32>>) {
+pub(crate) async fn load(args: Args, should_terminate: Arc<Mutex<bool>>) -> i32 {
     let serializer = utils::serializer_factory::get_serializer(args.serializer_type);
 
     // Wrap it in Arc<Mutex<>> for thread safety
@@ -35,7 +38,9 @@ pub(crate) async fn load(args: Args, shared_counter: Arc<Mutex<i32>>) {
         .await
         .unwrap();
 
-    loop {
+    let mut counter = 0;
+
+    while !*should_terminate.lock().unwrap() {
         let batch = utils::data_factory::genrate_record_batch(&serializer);
 
         let result = partition_client
@@ -44,8 +49,8 @@ pub(crate) async fn load(args: Args, shared_counter: Arc<Mutex<i32>>) {
 
         match result {
             Ok(_) => {
-                *shared_counter.lock().unwrap() += 1;
-                info!("Batch Saved: {}", *shared_counter.lock().unwrap());
+                counter += 1;
+                info!("Batch Saved: {:?}:{}", thread::current().id(), counter);
             }
             Err(err) => {
                 error!("Error occured");
@@ -53,4 +58,6 @@ pub(crate) async fn load(args: Args, shared_counter: Arc<Mutex<i32>>) {
             }
         }
     }
+
+    counter
 }

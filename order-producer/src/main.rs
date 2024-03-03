@@ -11,8 +11,10 @@ use log::warn;
 use tokio::signal;
 
 use std::env;
+
 use std::error::Error;
 use std::sync::{Arc, Mutex};
+use std::thread::available_parallelism;
 
 const ORDERS_TOPIC: &str = "orders";
 
@@ -22,28 +24,41 @@ const DEFAULT_BATCH_SIZE: i8 = 50;
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
-    let args = utils::args_parser::parse(env::args().collect());
+    // Get the number of available CPU cores
+    let num_cores = available_parallelism().unwrap().get();
 
-    // Wrap it in Arc<Mutex<>> for thread safety
-    let shared_counter = Arc::new(Mutex::new(1));
+    println!("Number of CPU cores: {}", num_cores);
 
-    // Spawn a thread and move the cloned counter into it
-    let shared_counter_clone = Arc::clone(&shared_counter);
+    // Introduce a flag for graceful termination
+    let should_terminate = Arc::new(Mutex::new(false));
 
-    let join_handle = tokio::spawn(async move { producer::load(args, shared_counter_clone).await });
+    let tasks = (0..num_cores)
+        .map(|_| {
+            let args = utils::args_parser::parse(env::args().collect());
+            // Clone a reference to should_terminate for the stream
+            let should_terminate_signal = Arc::clone(&should_terminate);
+            tokio::spawn(async move { producer::load(args, should_terminate_signal).await })
+        })
+        .collect::<Vec<_>>();
 
     signal::ctrl_c().await.expect("failed to listen for event");
 
-    warn!("Shutting down grcaefully...");
+    warn!("Shutting down gracefully...");
 
-    join_handle.abort();
+    // Update should_terminate when Ctrl+C is received
+    *should_terminate.lock().unwrap() = true;
 
-    // Continue using the original serializer in the main thread
-    let final_value = shared_counter.lock().unwrap();
+    let mut task_counters = 0;
+
+    // Wait for all tasks to complete and collect their results
+    for handle in tasks {
+        let val = handle.await.expect("Failed to await task");
+        task_counters += val;
+    }
 
     warn!(
-        "Total records produced: {:?}",
-        (*final_value) * (DEFAULT_BATCH_SIZE as i32)
+        "Total records produced: {}",
+        task_counters * (DEFAULT_BATCH_SIZE as i32)
     );
 
     warn!("Graceful shutdown completed!");
